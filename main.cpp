@@ -6,11 +6,26 @@
 #include <clang/Tooling/CommonOptionsParser.h>
 #include <clang/Tooling/Tooling.h>
 
+#include <filesystem>
 #include <iostream>
+#include <unordered_map>
+#include <vector>
 
 using namespace clang;
 using namespace clang::tooling;
 using namespace llvm;
+
+// hashing function for std::filesystem::path so we can put it in unordered_map
+namespace std {
+template <> struct hash<filesystem::path> {
+  size_t operator()(const filesystem::path &path) const {
+    return hash_value(path);
+  }
+};
+} // namespace std
+
+std::unordered_map<std::filesystem::path, std::vector<std::filesystem::path>>
+    fileIncludes;
 
 class MyCallback : public PPCallbacks {
 public:
@@ -25,9 +40,9 @@ public:
                           SrcMgr::CharacteristicKind FileType) override {
     auto &sourceManager = astContext_->getSourceManager();
     auto filename = sourceManager.getFilename(HashLoc);
-    if (filename == mainFilename_) {
-      std::cout << "Include: " << File->getName().str() << std::endl;
-    }
+    auto filePath = std::filesystem::path(filename);
+    auto includePath = std::filesystem::path(File->getName().str());
+    fileIncludes[filePath].push_back(includePath);
   }
 
 private:
@@ -57,7 +72,7 @@ public:
         StringRef filename =
             sourceManager.getFilename(constructorExpr->getLocStart());
         if (filename == mainFilename_) {
-          std::cout << "Constructor: "
+          std::cout << filename.str() << " Constructor: "
                     << constructorDecl->getNameInfo().getName().getAsString()
                     << std::endl;
         }
@@ -119,6 +134,35 @@ public:
   }
 };
 
+std::string getRootDirectory(const std::filesystem::path &path) {
+  int curId = 0;
+  std::string rootDirectory;
+  for (const auto &item : path) {
+    ++curId;
+    if (curId == 2) {
+      rootDirectory = item.string();
+      break;
+    }
+  }
+
+  return rootDirectory;
+}
+
+void printIncludesInfo() {
+  std::cout << "\n Includes info: " << std::endl;
+  for (const auto &fileInclude : fileIncludes) {
+    auto rootDirectory = getRootDirectory(fileInclude.first);
+    if (rootDirectory != "home")
+      continue;
+
+    std::cout << fileInclude.first << std::endl;
+    for (const auto &includePath : fileInclude.second) {
+      std::cout << "    " << includePath << std::endl;
+    }
+    std::cout << std::endl;
+  }
+}
+
 static cl::OptionCategory MyToolCategory("My tool options");
 static cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
 static cl::extrahelp MoreHelp("\nMore help text...\n");
@@ -129,5 +173,9 @@ int main(int argc, const char **argv) {
                  OptionsParser.getSourcePathList());
   auto frontendActionFactory =
       newFrontendActionFactory<ExampleFrontendAction>();
-  return Tool.run(frontendActionFactory.get());
+  auto result = Tool.run(frontendActionFactory.get());
+
+  printIncludesInfo();
+
+  return result;
 }
