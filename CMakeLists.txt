@@ -22,4 +22,8 @@ target_link_libraries(main
   clangTooling
   clangLex
   LLVM
+  stdc++fs
 )
+
+set_target_properties(main PROPERTIES
+  CXX_STANDARD 17)
