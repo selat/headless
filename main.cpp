@@ -188,6 +188,7 @@ void printIncludesMapInfo() {
 }
 
 void printMissingIncludesInfo() {
+  std::cout << "Please add the following headers:" << std::endl;
   for (const auto &header : headerUsages) {
     // Print warnings only about missing headers
     if (mainFileIncludes.count(header.first)) {
@@ -209,6 +210,15 @@ void printMissingIncludesInfo() {
   }
 }
 
+void printRedundantHeadersInfo() {
+  std::cout << "Please remove the following headers:" << std::endl;
+  for (const auto &headerPath : mainFileIncludes) {
+    if (!headerUsages.count(headerPath)) {
+      std::cout << headerPath.c_str() << std::endl;
+    }
+  }
+}
+
 static cl::OptionCategory MyToolCategory("My tool options");
 static cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
 static cl::extrahelp MoreHelp("\nMore help text...\n");
@@ -224,6 +234,7 @@ int main(int argc, const char **argv) {
   // printIncludesInfo();
   // printIncludesMapInfo();
   printMissingIncludesInfo();
+  printRedundantHeadersInfo();
 
   return result;
 }
