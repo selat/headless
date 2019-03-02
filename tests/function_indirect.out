@@ -1,0 +1,6 @@
+Please add the following headers:
+header1.hpp
+    func1
+
+Please remove the following headers:
+header_includes_other.hpp
