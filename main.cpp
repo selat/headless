@@ -99,6 +99,10 @@ public:
         processStatement(callExpr, funcDecl);
       }
     } else if (DeclStmt* declStmt = dyn_cast<DeclStmt>(statement)) {
+      // TODO: support non-single declarations
+      if (!declStmt->isSingleDecl()) {
+        return true;
+      }
       if (VarDecl* varDecl = dyn_cast<VarDecl>(declStmt->getSingleDecl())) {
         QualType type = varDecl->getType();
         TagDecl* tagDecl = type.getTypePtr()->getAsTagDecl();
