@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <iostream>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "header.hpp"
@@ -29,11 +30,12 @@ template <> struct hash<filesystem::path> {
 std::unordered_map<std::filesystem::path, std::vector<std::filesystem::path>>
     fileIncludes;
 std::unordered_map<std::filesystem::path, std::shared_ptr<Header>> headersMap;
+std::unordered_set<std::filesystem::path> mainFileIncludes;
 
 class MyCallback : public PPCallbacks {
 public:
-  MyCallback(ASTContext *astContext, StringRef mainFilename)
-      : astContext_(astContext), mainFilename_(mainFilename) {}
+  MyCallback(ASTContext *astContext, const std::filesystem::path &mainFilePath)
+      : astContext_(astContext), mainFilePath_(mainFilePath) {}
 
   void InclusionDirective(SourceLocation HashLoc, const Token &IncludeTok,
                           StringRef FileName, bool IsAngled,
@@ -55,11 +57,15 @@ public:
 
     headersMap[includePath]->addParentIfNeeded(headersMap[filePath]);
     fileIncludes[filePath].push_back(includePath);
+
+    if (filePath == mainFilePath_) {
+      mainFileIncludes.insert(includePath);
+    }
   }
 
 private:
   ASTContext *astContext_;
-  StringRef mainFilename_;
+  std::filesystem::path mainFilePath_;
 };
 
 class ExampleVisitor : public RecursiveASTVisitor<ExampleVisitor> {
@@ -69,10 +75,11 @@ public:
     auto &sourceManager = astContext_->getSourceManager();
     FileID mainFileID = sourceManager.getMainFileID();
     auto mainFileLocation = sourceManager.getLocForStartOfFile(mainFileID);
-    mainFilename_ = sourceManager.getFilename(mainFileLocation);
+    mainFilePath_ = std::filesystem::path(
+        sourceManager.getFilename(mainFileLocation).str());
 
     compilerInstance->getPreprocessor().addPPCallbacks(
-        std::make_unique<MyCallback>(astContext_, mainFilename_));
+        std::make_unique<MyCallback>(astContext_, mainFilePath_));
   }
 
   virtual bool VisitStmt(Stmt *statement) {
@@ -83,7 +90,8 @@ public:
         auto &sourceManager = astContext_->getSourceManager();
         StringRef filename =
             sourceManager.getFilename(constructorExpr->getLocStart());
-        if (filename == mainFilename_) {
+        std::filesystem::path filePath(filename.str());
+        if (filePath == mainFilePath_) {
           std::cout << filename.str() << " Constructor: "
                     << constructorDecl->getNameInfo().getName().getAsString()
                     << std::endl;
@@ -96,7 +104,8 @@ public:
         auto &sourceManager = astContext_->getSourceManager();
         StringRef filename =
             sourceManager.getFilename(memberCallExpr->getLocStart());
-        if (filename == mainFilename_) {
+        std::filesystem::path filePath(filename.str());
+        if (filePath == mainFilePath_) {
           std::cout << "Member: "
                     << astContext_
                            ->getTypeDeclType(
@@ -109,7 +118,8 @@ public:
       if (FunctionDecl *func = callExpr->getDirectCallee()) {
         auto &sourceManager = astContext_->getSourceManager();
         StringRef filename = sourceManager.getFilename(func->getLocStart());
-        if (filename == mainFilename_) {
+        std::filesystem::path filePath(filename.str());
+        if (filePath == mainFilePath_) {
           std::cout << "Seeing a func: "
                     << func->getNameInfo().getName().getAsString() << " "
                     << filename.str() << std::endl;
@@ -121,7 +131,7 @@ public:
 
 private:
   ASTContext *astContext_;
-  StringRef mainFilename_;
+  std::filesystem::path mainFilePath_;
 };
 
 class ExampleASTConsumer : public ASTConsumer {
@@ -195,8 +205,8 @@ int main(int argc, const char **argv) {
       newFrontendActionFactory<ExampleFrontendAction>();
   auto result = Tool.run(frontendActionFactory.get());
 
-  printIncludesInfo();
-  printIncludesMapInfo();
+  // printIncludesInfo();
+  // printIncludesMapInfo();
 
   return result;
 }
