@@ -31,6 +31,7 @@ std::unordered_map<std::filesystem::path, std::vector<std::filesystem::path>>
 std::unordered_map<std::filesystem::path, std::shared_ptr<Header>> headersMap;
 std::unordered_set<std::filesystem::path> mainFileIncludes;
 std::map<std::filesystem::path, std::set<std::string>> headerUsages;
+std::unordered_map<const clang::Type *, const TypeDecl *> hackyTypeMap;
 
 class IncludesCollectorCallback : public PPCallbacks {
 public:
@@ -71,7 +72,8 @@ private:
 class ExampleVisitor : public RecursiveASTVisitor<ExampleVisitor> {
 public:
   explicit ExampleVisitor(CompilerInstance *compilerInstance)
-      : sourceManager_(compilerInstance->getASTContext().getSourceManager()) {
+      : astContext_(compilerInstance->getASTContext()),
+        sourceManager_(compilerInstance->getASTContext().getSourceManager()) {
     FileID mainFileID = sourceManager_.getMainFileID();
     auto mainFileLocation = sourceManager_.getLocForStartOfFile(mainFileID);
     mainFilePath_ = std::filesystem::path(
@@ -98,30 +100,48 @@ public:
       if (FunctionDecl *funcDecl = callExpr->getDirectCallee()) {
         processStatement(callExpr, funcDecl);
       }
-    } else if (DeclStmt* declStmt = dyn_cast<DeclStmt>(statement)) {
+    } else if (DeclStmt *declStmt = dyn_cast<DeclStmt>(statement)) {
       // TODO: support non-single declarations
       if (!declStmt->isSingleDecl()) {
         return true;
       }
-      if (VarDecl* varDecl = dyn_cast<VarDecl>(declStmt->getSingleDecl())) {
+      if (VarDecl *varDecl = dyn_cast<VarDecl>(declStmt->getSingleDecl())) {
         QualType type = varDecl->getType();
-        TagDecl* tagDecl = type.getTypePtr()->getAsTagDecl();
+        const clang::Type *typePtr = type.getTypePtr();
+        TagDecl *tagDecl = typePtr->getAsTagDecl();
         if (tagDecl) {
           processStatement(declStmt, tagDecl);
+        } else if (hackyTypeMap.count(typePtr)) {
+          processStatement(declStmt, hackyTypeMap[typePtr]);
         }
       }
     }
     return true;
   }
 
-  void processStatement(Stmt *stmt, NamedDecl *decl) {
+  virtual bool VisitDecl(Decl *decl) {
+    // This is horrible, but I don't know a workaround. Basically I want to be
+    // able to convert clang::Type -> clang::TypeDecl to get source location
+    // of the former. Unrortunately after 3 hours of research I wasn't able to
+    // find a proper way to do it. Therefore I use approach with populating
+    // Type* -> TypeDecl* map using declarations visitor.
+    // Basically it is inverse implementation of ASTContext::getTypeDeclType()
+    if (TypeDecl *typeDecl = dyn_cast<TypeDecl>(decl)) {
+      QualType type = astContext_.getTypeDeclType(typeDecl);
+      hackyTypeMap[type.getTypePtr()] = typeDecl;
+    }
+    return true;
+  }
+
+  void processStatement(Stmt *stmt, const NamedDecl *decl) {
     std::filesystem::path sourceFilePath(
         sourceManager_.getFilename(decl->getLocStart()).str());
 
     processStatement(stmt, sourceFilePath, decl->getNameAsString());
   }
 
-  void processStatement(Stmt *stmt, const std::filesystem::path &sourceFilePath, std::string declName) {
+  void processStatement(Stmt *stmt, const std::filesystem::path &sourceFilePath,
+                        std::string declName) {
     std::filesystem::path filePath(
         sourceManager_.getFilename(stmt->getLocStart()).str());
 
@@ -139,6 +159,7 @@ public:
   }
 
 private:
+  const ASTContext &astContext_;
   const SourceManager &sourceManager_;
   std::filesystem::path mainFilePath_;
 };
