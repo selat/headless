@@ -5,6 +5,8 @@ set(CMAKE_MODULE_PATH
   "${CMAKE_SOURCE_DIR}/cmake/modules"
 )
 
+enable_testing()
+
 find_package(Clang REQUIRED libTooling)
 find_package(LLVM REQUIRED)
 
@@ -16,7 +18,6 @@ add_definitions(
 add_executable(main main.cpp header.hpp header.cpp)
 target_link_libraries(main
   clangAST
-  clangASTMatchers
   clangBasic
   clangFrontend
   clangTooling
@@ -27,3 +28,20 @@ target_link_libraries(main
 
 set_target_properties(main PROPERTIES
   CXX_STANDARD 17)
+
+file(GLOB integration_tests "tests/*.cpp")
+list(LENGTH integration_tests tests_num)
+MATH(EXPR max_test_index "${tests_num} - 1")
+
+foreach(test_id RANGE ${max_test_index})
+  list(GET integration_tests ${test_id} test_source)
+  string(REGEX REPLACE "\\.[^.]*$" ".out" test_expected ${test_source})
+
+  # Strip path
+  string(REGEX REPLACE "/.*/" "" test_name ${test_source})
+  # Strip extension
+  string(REGEX REPLACE "\\.[^.]*$" "" test_name ${test_name})
+
+  set(comparison_command sh -c "$<TARGET_FILE:main> ${test_source} | diff - ${test_expected}")
+  add_test(NAME test_${test_name} COMMAND ${comparison_command})
+endforeach(test_id)
