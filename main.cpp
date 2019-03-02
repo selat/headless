@@ -51,7 +51,8 @@ public:
 
     auto includePath = std::filesystem::path(File->getName().str());
     if (!headersMap.count(includePath)) {
-      headersMap[includePath] = std::make_shared<Header>(includePath);
+      headersMap[includePath] =
+          std::make_shared<Header>(includePath, RelativePath.str());
     }
 
     headersMap[includePath]->addParentIfNeeded(headersMap[filePath]);
@@ -192,7 +193,8 @@ void printMissingIncludesInfo() {
       continue;
     }
 
-    std::cout << header.first.c_str() << "\n    ";
+    auto relativePath = headersMap[header.first]->relativePath();
+    std::cout << relativePath.c_str() << "\n    ";
     auto iterator = header.second.begin();
     if (iterator != header.second.end()) {
       std::cout << *iterator;
@@ -211,7 +213,8 @@ void printRedundantHeadersInfo() {
   std::cout << "Please remove the following headers:" << std::endl;
   for (const auto &headerPath : mainFileIncludes) {
     if (!headerUsages.count(headerPath)) {
-      std::cout << headerPath.c_str() << std::endl;
+      auto relativePath = headersMap[headerPath]->relativePath();
+      std::cout << relativePath.c_str() << std::endl;
     }
   }
 }
