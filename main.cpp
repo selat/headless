@@ -11,6 +11,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "header.hpp"
+
 using namespace clang;
 using namespace clang::tooling;
 using namespace llvm;
@@ -26,6 +28,7 @@ template <> struct hash<filesystem::path> {
 
 std::unordered_map<std::filesystem::path, std::vector<std::filesystem::path>>
     fileIncludes;
+std::unordered_map<std::filesystem::path, std::shared_ptr<Header>> headersMap;
 
 class MyCallback : public PPCallbacks {
 public:
@@ -41,7 +44,14 @@ public:
     auto &sourceManager = astContext_->getSourceManager();
     auto filename = sourceManager.getFilename(HashLoc);
     auto filePath = std::filesystem::path(filename);
+    if (!headersMap.count(filePath)) {
+      headersMap[filePath] = std::make_shared<Header>(filePath);
+    }
+
     auto includePath = std::filesystem::path(File->getName().str());
+    if (!headersMap.count(includePath)) {
+      headersMap[includePath] = std::make_shared<Header>(includePath);
+    }
     fileIncludes[filePath].push_back(includePath);
   }
 
