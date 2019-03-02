@@ -13,7 +13,7 @@ add_definitions(
 -D__STDC_CONSTANT_MACROS
 )
 
-add_executable(main main.cpp)
+add_executable(main main.cpp header.hpp)
 target_link_libraries(main
   clangAST
   clangASTMatchers

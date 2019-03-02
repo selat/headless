@@ -152,8 +152,8 @@ void printIncludesInfo() {
   std::cout << "\n Includes info: " << std::endl;
   for (const auto &fileInclude : fileIncludes) {
     auto rootDirectory = getRootDirectory(fileInclude.first);
-    if (rootDirectory != "home")
-      continue;
+    // if (rootDirectory != "home")
+    //   continue;
 
     std::cout << fileInclude.first << std::endl;
     for (const auto &includePath : fileInclude.second) {
