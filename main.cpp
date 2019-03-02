@@ -65,21 +65,20 @@ public:
 
 private:
   const SourceManager &sourceManager_;
-  std::filesystem::path mainFilePath_;
+  const std::filesystem::path mainFilePath_;
 };
 
 class ExampleVisitor : public RecursiveASTVisitor<ExampleVisitor> {
 public:
   explicit ExampleVisitor(CompilerInstance *compilerInstance)
-      : astContext_(&(compilerInstance->getASTContext())) {
-    auto &sourceManager = astContext_->getSourceManager();
-    FileID mainFileID = sourceManager.getMainFileID();
-    auto mainFileLocation = sourceManager.getLocForStartOfFile(mainFileID);
+      : sourceManager_(compilerInstance->getASTContext().getSourceManager()) {
+    FileID mainFileID = sourceManager_.getMainFileID();
+    auto mainFileLocation = sourceManager_.getLocForStartOfFile(mainFileID);
     mainFilePath_ = std::filesystem::path(
-        sourceManager.getFilename(mainFileLocation).str());
+        sourceManager_.getFilename(mainFileLocation).str());
 
     compilerInstance->getPreprocessor().addPPCallbacks(
-        std::make_unique<IncludesCollectorCallback>(sourceManager,
+        std::make_unique<IncludesCollectorCallback>(sourceManager_,
                                                     mainFilePath_));
   }
 
@@ -93,8 +92,7 @@ public:
     } else if (CXXMemberCallExpr *memberCallExpr =
                    dyn_cast<CXXMemberCallExpr>(statement)) {
       if (CXXMethodDecl *methodDecl = memberCallExpr->getMethodDecl()) {
-        CXXRecordDecl *recordDecl = methodDecl->getParent();
-        processStatement(memberCallExpr, recordDecl);
+        processStatement(memberCallExpr, methodDecl->getParent());
       }
     } else if (CallExpr *callExpr = dyn_cast<CallExpr>(statement)) {
       if (FunctionDecl *funcDecl = callExpr->getDirectCallee()) {
@@ -105,11 +103,10 @@ public:
   }
 
   void processStatement(Stmt *stmt, NamedDecl *decl) {
-    auto &sourceManager = astContext_->getSourceManager();
     std::filesystem::path filePath(
-        sourceManager.getFilename(stmt->getLocStart()).str());
+        sourceManager_.getFilename(stmt->getLocStart()).str());
     std::filesystem::path sourceFilePath(
-        sourceManager.getFilename(decl->getLocStart()).str());
+        sourceManager_.getFilename(decl->getLocStart()).str());
 
     // Probably some internal type, like __va_list_tag
     if (sourceFilePath.empty() || sourceFilePath == mainFilePath_) {
@@ -126,7 +123,7 @@ public:
   }
 
 private:
-  ASTContext *astContext_;
+  const SourceManager &sourceManager_;
   std::filesystem::path mainFilePath_;
 };
 
