@@ -6,6 +6,7 @@
 #include <clang/Tooling/CommonOptionsParser.h>
 #include <clang/Tooling/Tooling.h>
 
+#include <cassert>
 #include <filesystem>
 #include <iostream>
 #include <unordered_map>
@@ -87,46 +88,41 @@ public:
             dyn_cast<CXXConstructExpr>(statement)) {
       if (CXXConstructorDecl *constructorDecl =
               constructorExpr->getConstructor()) {
-        auto &sourceManager = astContext_->getSourceManager();
-        StringRef filename =
-            sourceManager.getFilename(constructorExpr->getLocStart());
-        std::filesystem::path filePath(filename.str());
-        if (filePath == mainFilePath_) {
-          std::cout << filename.str() << " Constructor: "
-                    << constructorDecl->getNameInfo().getName().getAsString()
-                    << std::endl;
-        }
+        processStatement(constructorExpr, constructorDecl->getParent());
       }
     } else if (CXXMemberCallExpr *memberCallExpr =
                    dyn_cast<CXXMemberCallExpr>(statement)) {
       if (CXXMethodDecl *methodDecl = memberCallExpr->getMethodDecl()) {
         CXXRecordDecl *recordDecl = methodDecl->getParent();
-        auto &sourceManager = astContext_->getSourceManager();
-        StringRef filename =
-            sourceManager.getFilename(memberCallExpr->getLocStart());
-        std::filesystem::path filePath(filename.str());
-        if (filePath == mainFilePath_) {
-          std::cout << "Member: "
-                    << astContext_
-                           ->getTypeDeclType(
-                               const_cast<CXXRecordDecl *>(recordDecl))
-                           .getAsString()
-                    << std::endl;
-        }
+        processStatement(memberCallExpr, recordDecl);
       }
     } else if (CallExpr *callExpr = dyn_cast<CallExpr>(statement)) {
-      if (FunctionDecl *func = callExpr->getDirectCallee()) {
-        auto &sourceManager = astContext_->getSourceManager();
-        StringRef filename = sourceManager.getFilename(func->getLocStart());
-        std::filesystem::path filePath(filename.str());
-        if (filePath == mainFilePath_) {
-          std::cout << "Seeing a func: "
-                    << func->getNameInfo().getName().getAsString() << " "
-                    << filename.str() << std::endl;
-        }
+      if (FunctionDecl *funcDecl = callExpr->getDirectCallee()) {
+        processStatement(callExpr, funcDecl);
       }
     }
     return true;
+  }
+
+  void processStatement(Stmt *stmt, NamedDecl *decl) {
+    auto &sourceManager = astContext_->getSourceManager();
+    std::filesystem::path filePath(
+        sourceManager.getFilename(stmt->getLocStart()).str());
+    std::filesystem::path sourceFilePath(
+        sourceManager.getFilename(decl->getLocStart()).str());
+
+    // Probably some internal type, like __va_list_tag
+    if (sourceFilePath.empty() || sourceFilePath == mainFilePath_) {
+      return;
+    }
+
+    assert(headersMap.count(sourceFilePath));
+    if (!headersMap[sourceFilePath]->isInternal()) {
+      if (filePath == mainFilePath_) {
+        std::cout << "Include dat! " << sourceFilePath << " because you use "
+                  << decl->getNameAsString() << std::endl;
+      }
+    }
   }
 
 private:
