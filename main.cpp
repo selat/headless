@@ -98,15 +98,28 @@ public:
       if (FunctionDecl *funcDecl = callExpr->getDirectCallee()) {
         processStatement(callExpr, funcDecl);
       }
+    } else if (DeclStmt* declStmt = dyn_cast<DeclStmt>(statement)) {
+      if (VarDecl* varDecl = dyn_cast<VarDecl>(declStmt->getSingleDecl())) {
+        QualType type = varDecl->getType();
+        TagDecl* tagDecl = type.getTypePtr()->getAsTagDecl();
+        if (tagDecl) {
+          processStatement(declStmt, tagDecl);
+        }
+      }
     }
     return true;
   }
 
   void processStatement(Stmt *stmt, NamedDecl *decl) {
-    std::filesystem::path filePath(
-        sourceManager_.getFilename(stmt->getLocStart()).str());
     std::filesystem::path sourceFilePath(
         sourceManager_.getFilename(decl->getLocStart()).str());
+
+    processStatement(stmt, sourceFilePath, decl->getNameAsString());
+  }
+
+  void processStatement(Stmt *stmt, const std::filesystem::path &sourceFilePath, std::string declName) {
+    std::filesystem::path filePath(
+        sourceManager_.getFilename(stmt->getLocStart()).str());
 
     // Probably some internal type, like __va_list_tag
     if (sourceFilePath.empty() || sourceFilePath == mainFilePath_) {
@@ -116,7 +129,7 @@ public:
     assert(headersMap.count(sourceFilePath));
     if (!headersMap[sourceFilePath]->isInternal()) {
       if (filePath == mainFilePath_) {
-        headerUsages[sourceFilePath].insert(decl->getNameAsString());
+        headerUsages[sourceFilePath].insert(declName);
       }
     }
   }
