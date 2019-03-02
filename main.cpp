@@ -52,6 +52,8 @@ public:
     if (!headersMap.count(includePath)) {
       headersMap[includePath] = std::make_shared<Header>(includePath);
     }
+
+    headersMap[includePath]->addParentIfNeeded(headersMap[filePath]);
     fileIncludes[filePath].push_back(includePath);
   }
 
@@ -162,14 +164,22 @@ void printIncludesInfo() {
   std::cout << "\n Includes info: " << std::endl;
   for (const auto &fileInclude : fileIncludes) {
     auto rootDirectory = getRootDirectory(fileInclude.first);
-    // if (rootDirectory != "home")
-    //   continue;
+    if (rootDirectory != "home")
+      continue;
 
     std::cout << fileInclude.first << std::endl;
     for (const auto &includePath : fileInclude.second) {
       std::cout << "    " << includePath << std::endl;
     }
     std::cout << std::endl;
+  }
+}
+
+void printIncludesMapInfo() {
+  for (const auto &p : headersMap) {
+    const auto &path = p.first;
+    std::cout << p.second->isInternal() << " " << path << "    ->    "
+              << p.second->getRealPath() << std::endl;
   }
 }
 
@@ -186,6 +196,7 @@ int main(int argc, const char **argv) {
   auto result = Tool.run(frontendActionFactory.get());
 
   printIncludesInfo();
+  printIncludesMapInfo();
 
   return result;
 }

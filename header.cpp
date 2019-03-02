@@ -6,7 +6,7 @@ namespace {
 bool isSubDirectory(const std::filesystem::path &path,
                     const std::filesystem::path &root) {
   auto currentPath = path;
-  while (!currentPath.empty()) {
+  while (!currentPath.empty() && currentPath.has_relative_path()) {
     if (currentPath == root) {
       return true;
     }
@@ -16,23 +16,33 @@ bool isSubDirectory(const std::filesystem::path &path,
 }
 } // namespace
 
-void Header::addParent(std::shared_ptr<Header> parent) {
-  auto directoryPath = parent->path_.remove_filename();
-  if (isSubDirectory(path_, directoryPath)) {
-    assert(!parent_.has_value());
+void Header::addParentIfNeeded(std::shared_ptr<Header> parent) {
+  // TODO: implement proper checker for internal header files.
+  if (parent_.has_value()) {
+    return;
+  }
+
+  auto directoryPath = parent->path_.parent_path();
+  auto childDirectoryPath = path_.parent_path().parent_path();
+  if (isSubDirectory(childDirectoryPath, directoryPath)) {
+    if (parent_.has_value()) {
+      auto parentLock = parent_.value().lock();
+      assert(parentLock);
+      assert(parentLock->path_ == parent->path_);
+    }
     parent_ = parent;
   }
 }
 
 std::filesystem::path Header::getRealPath() {
   auto parent = parent_;
-  std::filesystem::path path;
+  auto realPath = path_;
   while (parent.has_value()) {
     auto parentLock = parent.value().lock();
     assert(parentLock);
-    path = parentLock->path_;
+    realPath = parentLock->path_;
     parent = parentLock->parent_;
     parent_ = parent;
   }
-  return path;
+  return realPath;
 }
