@@ -32,10 +32,11 @@ std::unordered_map<std::filesystem::path, std::vector<std::filesystem::path>>
 std::unordered_map<std::filesystem::path, std::shared_ptr<Header>> headersMap;
 std::unordered_set<std::filesystem::path> mainFileIncludes;
 
-class MyCallback : public PPCallbacks {
+class IncludesCollectorCallback : public PPCallbacks {
 public:
-  MyCallback(ASTContext *astContext, const std::filesystem::path &mainFilePath)
-      : astContext_(astContext), mainFilePath_(mainFilePath) {}
+  IncludesCollectorCallback(const SourceManager &sourceManager,
+                            const std::filesystem::path &mainFilePath)
+      : sourceManager_(sourceManager), mainFilePath_(mainFilePath) {}
 
   void InclusionDirective(SourceLocation HashLoc, const Token &IncludeTok,
                           StringRef FileName, bool IsAngled,
@@ -43,9 +44,7 @@ public:
                           StringRef SearchPath, StringRef RelativePath,
                           const clang::Module *Imported,
                           SrcMgr::CharacteristicKind FileType) override {
-    auto &sourceManager = astContext_->getSourceManager();
-    auto filename = sourceManager.getFilename(HashLoc);
-    auto filePath = std::filesystem::path(filename);
+    auto filePath = std::filesystem::path(sourceManager_.getFilename(HashLoc));
     if (!headersMap.count(filePath)) {
       headersMap[filePath] = std::make_shared<Header>(filePath);
     }
@@ -64,7 +63,7 @@ public:
   }
 
 private:
-  ASTContext *astContext_;
+  const SourceManager &sourceManager_;
   std::filesystem::path mainFilePath_;
 };
 
@@ -79,7 +78,8 @@ public:
         sourceManager.getFilename(mainFileLocation).str());
 
     compilerInstance->getPreprocessor().addPPCallbacks(
-        std::make_unique<MyCallback>(astContext_, mainFilePath_));
+        std::make_unique<IncludesCollectorCallback>(sourceManager,
+                                                    mainFilePath_));
   }
 
   virtual bool VisitStmt(Stmt *statement) {
