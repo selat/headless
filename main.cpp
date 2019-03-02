@@ -9,6 +9,7 @@
 #include <cassert>
 #include <filesystem>
 #include <iostream>
+#include <set>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -32,6 +33,7 @@ std::unordered_map<std::filesystem::path, std::vector<std::filesystem::path>>
     fileIncludes;
 std::unordered_map<std::filesystem::path, std::shared_ptr<Header>> headersMap;
 std::unordered_set<std::filesystem::path> mainFileIncludes;
+std::map<std::filesystem::path, std::set<std::string>> headerUsages;
 
 class IncludesCollectorCallback : public PPCallbacks {
 public:
@@ -116,8 +118,7 @@ public:
     assert(headersMap.count(sourceFilePath));
     if (!headersMap[sourceFilePath]->isInternal()) {
       if (filePath == mainFilePath_) {
-        std::cout << "Include dat! " << sourceFilePath << " because you use "
-                  << decl->getNameAsString() << std::endl;
+        headerUsages[sourceFilePath].insert(decl->getNameAsString());
       }
     }
   }
@@ -186,6 +187,28 @@ void printIncludesMapInfo() {
   }
 }
 
+void printMissingIncludesInfo() {
+  for (const auto &header : headerUsages) {
+    // Print warnings only about missing headers
+    if (mainFileIncludes.count(header.first)) {
+      continue;
+    }
+
+    std::cout << header.first.c_str() << "\n    ";
+    auto iterator = header.second.begin();
+    if (iterator != header.second.end()) {
+      std::cout << *iterator;
+      ++iterator;
+    }
+
+    while (iterator != header.second.end()) {
+      std::cout << ", " << *iterator;
+      ++iterator;
+    }
+    std::cout << std::endl << std::endl;
+  }
+}
+
 static cl::OptionCategory MyToolCategory("My tool options");
 static cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
 static cl::extrahelp MoreHelp("\nMore help text...\n");
@@ -200,6 +223,7 @@ int main(int argc, const char **argv) {
 
   // printIncludesInfo();
   // printIncludesMapInfo();
+  printMissingIncludesInfo();
 
   return result;
 }
