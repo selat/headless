@@ -22,6 +22,14 @@ void Header::addParentIfNeeded(std::shared_ptr<Header> parent) {
     return;
   }
 
+  if (parent->parent_.has_value()) {
+    auto tmp = parent;
+    while (tmp->parent_.has_value()) {
+      tmp = tmp->parent_.value().lock();
+    }
+    parent = tmp;
+  }
+
   auto directoryPath = parent->path_.parent_path();
   auto childDirectoryPath = path_.parent_path().parent_path();
   if (isSubDirectory(childDirectoryPath, directoryPath)) {

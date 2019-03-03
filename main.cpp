@@ -155,6 +155,10 @@ public:
       if (filePath == mainFilePath_) {
         headerUsages[sourceFilePath].insert(declName);
       }
+    } else {
+      if (filePath == mainFilePath_) {
+        headerUsages[headersMap[sourceFilePath]->getRealPath()].insert(declName);
+      }
     }
   }
 
