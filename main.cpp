@@ -157,7 +157,8 @@ public:
       }
     } else {
       if (filePath == mainFilePath_) {
-        headerUsages[headersMap[sourceFilePath]->getRealPath()].insert(declName);
+        headerUsages[headersMap[sourceFilePath]->getRealPath()].insert(
+            declName);
       }
     }
   }
