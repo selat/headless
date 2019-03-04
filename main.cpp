@@ -232,7 +232,8 @@ void printMissingIncludesInfo() {
   std::cout << "Please add the following headers:" << std::endl;
   for (const auto &header : headerUsages) {
     // Print warnings only about missing headers
-    if (mainFileIncludes.count(header.first)) {
+    if (mainFileIncludes.count(header.first) ||
+        headersMap[header.first]->isInternal()) {
       continue;
     }
 

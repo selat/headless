@@ -46,11 +46,11 @@ std::filesystem::path Header::getRealPath() {
   auto parent = parent_;
   auto realPath = path_;
   while (parent.has_value()) {
+    parent_ = parent;
     auto parentLock = parent.value().lock();
     assert(parentLock);
     realPath = parentLock->path_;
     parent = parentLock->parent_;
-    parent_ = parent;
   }
   return realPath;
 }
