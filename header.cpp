@@ -1,6 +1,8 @@
 #include "header.hpp"
 
 #include <cassert>
+#include <filesystem>
+#include <optional>
 
 namespace {
 bool isSubDirectory(const std::filesystem::path &path,
