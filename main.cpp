@@ -115,6 +115,10 @@ public:
           processStatement(declStmt, hackyTypeMap[typePtr]);
         }
       }
+    } else if (DeclRefExpr *declRef = dyn_cast<DeclRefExpr>(statement)) {
+      if (NamedDecl *namedDecl = declRef->getFoundDecl()) {
+        processStatement(declRef, namedDecl);
+      }
     }
     return true;
   }
