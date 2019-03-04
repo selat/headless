@@ -15,8 +15,9 @@ add_definitions(
 -D__STDC_CONSTANT_MACROS
 )
 
-add_executable(main main.cpp header.hpp header.cpp)
-target_link_libraries(main
+set(NAME headless)
+add_executable(${NAME} main.cpp header.hpp header.cpp)
+target_link_libraries(${NAME}
   clangAST
   clangBasic
   clangFrontend
@@ -26,7 +27,7 @@ target_link_libraries(main
   stdc++fs
 )
 
-set_target_properties(main PROPERTIES
+set_target_properties(${NAME} PROPERTIES
   CXX_STANDARD 17)
 
 file(GLOB integration_tests "tests/*")
@@ -41,6 +42,6 @@ foreach(test_id RANGE ${max_test_index})
   # Strip path
   string(REGEX REPLACE "/.*/" "" test_name ${test_dir})
 
-  set(comparison_command sh -c "$<TARGET_FILE:main> ${test_source} | diff - ${test_expected}")
+  set(comparison_command sh -c "$<TARGET_FILE:${NAME}> ${test_source} | diff - ${test_expected}")
   add_test(NAME test_${test_name} COMMAND ${comparison_command})
 endforeach(test_id)
