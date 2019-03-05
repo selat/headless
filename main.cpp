@@ -133,22 +133,33 @@ public:
     if (TypeDecl *typeDecl = dyn_cast<TypeDecl>(decl)) {
       QualType type = astContext_.getTypeDeclType(typeDecl);
       hackyTypeMap[type.getTypePtr()] = typeDecl;
+    } else if (CXXMethodDecl *methodDecl = dyn_cast<CXXMethodDecl>(decl)) {
+      if (CXXRecordDecl *recordDecl = methodDecl->getParent()) {
+        std::filesystem::path sourceFilePath(
+            sourceManager_.getFilename(recordDecl->getLocStart()).str());
+        std::filesystem::path filePath(
+            sourceManager_.getFilename(methodDecl->getLocStart()).str());
+        DeclarationNameInfo nameInfo = methodDecl->getNameInfo();
+        auto declName = nameInfo.getName().getAsString();
+
+        addUsage(filePath, sourceFilePath, declName);
+      }
     }
     return true;
   }
 
   void processStatement(Stmt *stmt, const NamedDecl *decl) {
+    std::filesystem::path filePath(
+        sourceManager_.getFilename(stmt->getLocStart()).str());
     std::filesystem::path sourceFilePath(
         sourceManager_.getFilename(decl->getLocStart()).str());
 
-    processStatement(stmt, sourceFilePath, decl->getNameAsString());
+    addUsage(filePath, sourceFilePath, decl->getNameAsString());
   }
 
-  void processStatement(Stmt *stmt, const std::filesystem::path &sourceFilePath,
-                        std::string declName) {
-    std::filesystem::path filePath(
-        sourceManager_.getFilename(stmt->getLocStart()).str());
-
+  void addUsage(const std::filesystem::path &filePath,
+                const std::filesystem::path &sourceFilePath,
+                const std::string &name) {
     // Probably some internal type, like __va_list_tag
     if (sourceFilePath.empty() || sourceFilePath == mainFilePath_) {
       return;
@@ -157,12 +168,11 @@ public:
     assert(headersMap.count(sourceFilePath));
     if (!headersMap[sourceFilePath]->isInternal()) {
       if (filePath == mainFilePath_) {
-        headerUsages[sourceFilePath].insert(declName);
+        headerUsages[sourceFilePath].insert(name);
       }
     } else {
       if (filePath == mainFilePath_) {
-        headerUsages[headersMap[sourceFilePath]->getRealPath()].insert(
-            declName);
+        headerUsages[headersMap[sourceFilePath]->getRealPath()].insert(name);
       }
     }
   }
